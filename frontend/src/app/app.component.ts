@@ -90,25 +90,25 @@ export class AppComponent implements OnInit {
   backendService = new BackendService();
 
   inputQuery: string = "";
+  message: string = "";
   viewCount: any = "???";
   commentCount: any = "???";
   searchResult: any = "???";
 
+  viewCountcontrol: number = 0;
+  commentCountControl: number = 0;
+
   detectChanges: boolean = false;
 
-  ngOnInit(): void {
+  ngOnInit() {
     this.backendService.viewCount$.subscribe((el) => {
       if (el != this.viewCount) {
         this.viewCount = el;
-        this.detectChanges = true;
-        this.display(this.viewCount, this.commentCount, this.searchResult);
       }
     });
     this.backendService.commentCount$.subscribe((el) => {
       if (el != this.commentCount) {
-        this.detectChanges = true;
         this.commentCount = el;
-        this.display(this.viewCount, this.commentCount, this.searchResult);
       }
     });
   }
@@ -118,6 +118,7 @@ export class AppComponent implements OnInit {
     commentCount: number,
     searchResult: boolean | null
   ) {
+    console.log("Display is called!");
     this.searchResult = searchResult;
     this.viewCount = viewCount;
     this.commentCount = commentCount;
@@ -128,17 +129,22 @@ export class AppComponent implements OnInit {
 
     const [isSearchTermValid, searchTerm] = this.isValid(searchTermRaw);
     if (isSearchTermValid) {
-      this.backendService.search(searchTerm).subscribe(
-        (result) => {
+      this.backendService.search(searchTerm).subscribe({
+        next: (result) => {
           this.searchResult = result;
         },
-        (error) => {
-          console.log("ERROR: ", error);
+        error: (e) => {
+          console.log("ERROR: ", e);
           this.search();
-        }
-      );
+        },
+      });
+      this.message = "";
+      this.display(this.viewCount, this.commentCount, this.searchResult);
+    } else {
+      console.log("INVALID");
+      this.message =
+        "Your search input is invalid. Please enter a new search term!";
     }
-    this.display(this.viewCount, this.commentCount, this.searchResult);
   }
 
   private isValid(searchTermRaw: string) {
