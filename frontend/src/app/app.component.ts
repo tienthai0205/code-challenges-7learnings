@@ -8,9 +8,9 @@ Solution shouldn't take more than two hours.
 UX and styling will not be evaluated (don't spend time on them).
 */
 
-import { HttpErrorResponse } from '@angular/common/http';
-import { Component } from '@angular/core';
-import { interval, timer, map, Observable } from 'rxjs';
+import { HttpErrorResponse } from "@angular/common/http";
+import { Component, OnInit } from "@angular/core";
+import { interval, timer, map, Observable } from "rxjs";
 
 /*
 Search query representation.
@@ -82,17 +82,99 @@ TASK:
 */
 
 @Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.css'],
+  selector: "app-root",
+  templateUrl: "./app.component.html",
+  styleUrls: ["./app.component.css"],
 })
-export class AppComponent {
+export class AppComponent implements OnInit {
   backendService = new BackendService();
 
+  inputQuery: string = "";
+  viewCount: any = "???";
+  commentCount: any = "???";
+  searchResult: any = "???";
+
+  detectChanges: boolean = false;
+
+  ngOnInit(): void {
+    this.backendService.viewCount$.subscribe((el) => {
+      if (el != this.viewCount) {
+        this.viewCount = el;
+        this.detectChanges = true;
+        this.display(this.viewCount, this.commentCount, this.searchResult);
+      }
+    });
+    this.backendService.commentCount$.subscribe((el) => {
+      if (el != this.commentCount) {
+        this.detectChanges = true;
+        this.commentCount = el;
+        this.display(this.viewCount, this.commentCount, this.searchResult);
+      }
+    });
+  }
   // Example how the display method's signature could look like (you are free to change this)
   display(
     viewCount: number,
     commentCount: number,
     searchResult: boolean | null
-  ) {}
+  ) {
+    this.searchResult = searchResult;
+    this.viewCount = viewCount;
+    this.commentCount = commentCount;
+  }
+
+  search() {
+    let searchTermRaw = this.inputQuery;
+
+    const [isSearchTermValid, searchTerm] = this.isValid(searchTermRaw);
+    if (isSearchTermValid) {
+      this.backendService.search(searchTerm).subscribe(
+        (result) => {
+          this.searchResult = result;
+        },
+        (error) => {
+          console.log("ERROR: ", error);
+          this.search();
+        }
+      );
+    }
+    this.display(this.viewCount, this.commentCount, this.searchResult);
+  }
+
+  private isValid(searchTermRaw: string) {
+    let isValidQuery: boolean = true;
+    let searchterm: SearchTerm = {};
+    let searchComponents = searchTermRaw
+      .split(/[, ]+/)
+      .filter((element) => element !== "");
+
+    if (searchComponents.length == 0) isValidQuery = false;
+
+    let txtSet: boolean = false;
+    let minSet: boolean = false;
+    let maxSet: boolean = false;
+
+    searchComponents.forEach((identifier) => {
+      if (!+identifier) {
+        txtSet = true;
+        searchterm.txt = identifier;
+      } else {
+        if (minSet && !maxSet) {
+          maxSet = true;
+          searchterm.max = +identifier;
+        }
+        if (!minSet) {
+          minSet = true;
+          searchterm.min = +identifier;
+        }
+      }
+    });
+    if (txtSet && minSet) isValidQuery = false;
+
+    if (minSet && maxSet && isValidQuery) {
+      isValidQuery = +searchComponents[0] <= +searchComponents[1];
+    }
+
+    return [isValidQuery, searchterm] as const;
+  }
 }

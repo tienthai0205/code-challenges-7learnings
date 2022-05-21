@@ -1,4 +1,5 @@
-View count: ???<br />
-Comment count: ???<br />
-Search result: true/false (if defined)<br />
-<input /><button>Search</button>
+View count: <span>{{ viewCount }}</span><br />
+Comment count: <span>{{commentCount}}</span><br />
+Search result: true/false (if defined) <span>{{searchResult}}</span><br />
+<input type="text" [(ngModel)]="inputQuery">
+<button (click)="search()">Search</button>
