@@ -140,15 +140,18 @@ export class AppComponent implements OnInit, OnDestroy {
     let searchTermRaw = this.inputQuery;
     const [isSearchTermValid, searchTerm] = this.isValid(searchTermRaw);
     if (isSearchTermValid) {
-      this.backendService.search(searchTerm).subscribe({
-        next: (result) => {
-          this.searchResult = result;
-        },
-        error: (e) => {
-          console.log("ERROR: ", e);
-          this.search();
-        },
-      });
+      this.backendService
+        .search(searchTerm)
+        .pipe(takeUntil(this.ngUnsubscribe))
+        .subscribe({
+          next: (result) => {
+            this.searchResult = result;
+          },
+          error: (e) => {
+            console.log("ERROR: ", e);
+            this.search();
+          },
+        });
       this.message = "";
       this.display(this.viewCount, this.commentCount, this.searchResult);
     } else {
@@ -173,7 +176,7 @@ export class AppComponent implements OnInit, OnDestroy {
     // split the input query to an array of values to process
     let searchComponents = searchTermRaw
       .split(/[,-]+/)
-      .filter((element) => element !== "");
+      .filter((element) => element.trim() !== "");
 
     // constraint: Empty value
     if (searchComponents.length == 0) isValidQuery = false;
