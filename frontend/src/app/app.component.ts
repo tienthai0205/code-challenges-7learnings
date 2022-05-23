@@ -9,8 +9,9 @@ UX and styling will not be evaluated (don't spend time on them).
 */
 
 import { HttpErrorResponse } from "@angular/common/http";
-import { Component, OnInit } from "@angular/core";
-import { interval, timer, map, Observable } from "rxjs";
+import { Component, OnDestroy, OnInit } from "@angular/core";
+import { interval, timer, map, Observable, first, takeUntil } from "rxjs";
+import { Subject } from "rxjs";
 
 /*
 Search query representation.
@@ -86,31 +87,41 @@ TASK:
   templateUrl: "./app.component.html",
   styleUrls: ["./app.component.css"],
 })
-export class AppComponent implements OnInit {
+export class AppComponent implements OnInit, OnDestroy {
+  private ngUnsubscribe = new Subject<void>();
   backendService = new BackendService();
 
-  inputQuery: string = "";
-  message: string = "";
-  viewCount: any = "???";
-  commentCount: any = "???";
-  searchResult: any = "???";
-
-  viewCountcontrol: number = 0;
-  commentCountControl: number = 0;
+  inputQuery: string = ""; // user input query term
+  message: string = ""; // output message to user, just used now to inform invalid query
+  viewCount: any = "???"; // count of views to display on screen
+  commentCount: any = "???"; // count of comments to display on screen
+  searchResult: any = "???"; // search result to display on screen
 
   detectChanges: boolean = false;
 
   ngOnInit() {
-    this.backendService.viewCount$.subscribe((el) => {
-      if (el != this.viewCount) {
-        this.viewCount = el;
-      }
-    });
-    this.backendService.commentCount$.subscribe((el) => {
-      if (el != this.commentCount) {
-        this.commentCount = el;
-      }
-    });
+    // process observable data
+    this.backendService.viewCount$
+      .pipe(takeUntil(this.ngUnsubscribe))
+      .subscribe((data) => {
+        if (data != this.viewCount) {
+          this.detectChanges = true;
+          this.viewCount = data;
+        }
+      });
+    this.backendService.commentCount$
+      .pipe(takeUntil(this.ngUnsubscribe))
+      .subscribe((data) => {
+        if (data != this.commentCount) {
+          this.detectChanges = true;
+          this.commentCount = data;
+        }
+      });
+  }
+
+  ngOnDestroy() {
+    this.ngUnsubscribe.next();
+    this.ngUnsubscribe.complete();
   }
   // Example how the display method's signature could look like (you are free to change this)
   display(
@@ -118,15 +129,15 @@ export class AppComponent implements OnInit {
     commentCount: number,
     searchResult: boolean | null
   ) {
-    console.log("Display is called!");
     this.searchResult = searchResult;
     this.viewCount = viewCount;
     this.commentCount = commentCount;
   }
 
+  // search function fires when search button is clicked. Throw error to user
+  // when search box is empty or invalid
   search() {
     let searchTermRaw = this.inputQuery;
-
     const [isSearchTermValid, searchTerm] = this.isValid(searchTermRaw);
     if (isSearchTermValid) {
       this.backendService.search(searchTerm).subscribe({
@@ -141,25 +152,37 @@ export class AppComponent implements OnInit {
       this.message = "";
       this.display(this.viewCount, this.commentCount, this.searchResult);
     } else {
-      console.log("INVALID");
       this.message =
         "Your search input is invalid. Please enter a new search term!";
     }
   }
 
+  /* check if the input search term is valid or not
+    Example of a valid search term: 
+    'text' -> txt is set
+    '2-5'; '2 5'; '2, 5' -> min-max range is set
+    '2' -> min is set
+    RETURN 2 value: 
+    - isValidQuery: Whether the entered search term is valid or not
+    - searchterm: the reformatted searchterm cast to SearchTerm interface
+  */
   private isValid(searchTermRaw: string) {
     let isValidQuery: boolean = true;
     let searchterm: SearchTerm = {};
+
+    // split the input query to an array of values to process
     let searchComponents = searchTermRaw
-      .split(/[, ]+/)
+      .split(/[,-]+/)
       .filter((element) => element !== "");
 
+    // constraint: Empty value
     if (searchComponents.length == 0) isValidQuery = false;
 
     let txtSet: boolean = false;
     let minSet: boolean = false;
     let maxSet: boolean = false;
 
+    // process the array of values and set each component if present
     searchComponents.forEach((identifier) => {
       if (!+identifier) {
         txtSet = true;
@@ -175,8 +198,10 @@ export class AppComponent implements OnInit {
         }
       }
     });
+    // constraint: both txt and number are set
     if (txtSet && minSet) isValidQuery = false;
 
+    // constraint: if max and min are both set then max >= min
     if (minSet && maxSet && isValidQuery) {
       isValidQuery = +searchComponents[0] <= +searchComponents[1];
     }
